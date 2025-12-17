@@ -1,0 +1,28 @@
+# Rendering
+render_dpi: 150
+max_pages_per_doc: 500
+
+# Preprocessing
+clahe_clip_limit: 2.0
+clahe_grid_size: 8
+
+# Embedding
+siglip_model: "google/siglip-so400m-patch14-384"
+siglip_batch_size: 32
+embedding_dim: 1152
+
+# Retrieval
+stage1_top_k: 100
+default_result_k: 20
+
+# Reranking
+colqwen_model: "vidore/colqwen2-v1"
+colqwen_lazy_load: true
+rerank_batch_size: 8
+
+# Text search
+enable_text_boost: true
+text_boost_weight: 0.3
+
+# Index
+faiss_index_type: "IndexFlatIP"

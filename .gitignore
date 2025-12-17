@@ -1,0 +1,51 @@
+# Spec (private)
+spec/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+.uv/
+*.egg-info/
+dist/
+build/
+
+# UV
+uv.lock
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Data (runtime generated)
+data/
+*.index
+*.pkl
+
+# UI
+ui/node_modules/
+ui/dist/
+ui/.vite/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Environment
+.env
+.env.local
+*.log
+
+# Models (downloaded at runtime)
+models/
+*.bin
+*.safetensors

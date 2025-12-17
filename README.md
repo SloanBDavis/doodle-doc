@@ -9,6 +9,9 @@ Sketch-based search for handwritten PDF notes. Draw a symbol, find where you wro
 - Get back matching pages ranked by similarity
 - Optional "High Accuracy" mode uses a stronger model for reranking
 
+## Updates
+- Just started this today, looking to have it working sometime in January (Dec 17, 2025)
+
 ## Architecture
 
 **Two-stage retrieval:**

@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
+import numpy as np
 
 from doodle_doc.core.config import Settings
 from doodle_doc.core.database import Database, DocumentModel, PageModel
@@ -164,7 +165,6 @@ class IngestionPipeline:
                     "region": region_name,
                 })
 
-            import numpy as np
             self.index.add(np.array(embeddings), metadata)
 
             progress.pages_done += 1

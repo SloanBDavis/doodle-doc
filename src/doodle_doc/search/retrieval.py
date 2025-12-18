@@ -4,7 +4,6 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 from PIL import Image
 
 from doodle_doc.core.config import Settings

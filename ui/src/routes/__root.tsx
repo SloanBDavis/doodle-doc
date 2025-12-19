@@ -1,9 +1,10 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
+import { PageLayout } from "@/components/layout/PageLayout";
 
 export const Route = createRootRoute({
   component: () => (
-    <div className="min-h-screen flex flex-col">
+    <PageLayout>
       <Outlet />
-    </div>
+    </PageLayout>
   ),
 });

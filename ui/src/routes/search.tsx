@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useNavigate, createFileRoute } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -35,14 +36,18 @@ function SearchPage() {
     const blob = await canvasRef.current?.exportBlob();
     if (!blob) return;
 
-    const response = await searchMutation.mutateAsync({
-      sketchBlob: blob,
-      textQuery: textQuery || undefined,
-      useRerank,
-    });
+    try {
+      const response = await searchMutation.mutateAsync({
+        sketchBlob: blob,
+        textQuery: textQuery || undefined,
+        useRerank,
+      });
 
-    setResults(response.results);
-    setQueryTimeMs(response.query_time_ms);
+      setResults(response.results);
+      setQueryTimeMs(response.query_time_ms);
+    } catch {
+      toast.error("Search failed. Make sure the API server is running.");
+    }
   };
 
   const handleResultClick = (result: SearchResultItem) => {

@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     default_result_k: int = 20
 
     # Reranking
-    colqwen_model: str = "vidore/colqwen2-v1"
+    colqwen_model: str = "vidore/colqwen2-v1.0-hf"
     colqwen_lazy_load: bool = True
     rerank_batch_size: int = 8
 

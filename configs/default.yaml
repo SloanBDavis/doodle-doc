@@ -16,7 +16,7 @@ stage1_top_k: 100
 default_result_k: 20
 
 # Reranking
-colqwen_model: "vidore/colqwen2-v1"
+colqwen_model: "vidore/colqwen2-v1.0-hf"
 colqwen_lazy_load: true
 rerank_batch_size: 8
 

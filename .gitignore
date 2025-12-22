@@ -25,6 +25,7 @@ htmlcov/
 
 # Data (runtime generated)
 data/
+test_pdfs/
 *.index
 *.pkl
 

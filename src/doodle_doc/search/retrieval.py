@@ -13,6 +13,7 @@ from doodle_doc.ingestion.embed import SigLIP2Embedder
 from doodle_doc.ingestion.index import FAISSIndex
 from doodle_doc.ingestion.preprocess import normalize_sketch
 from doodle_doc.search.fusion import reciprocal_rank_fusion
+from doodle_doc.search.rerank import ColQwen2Reranker
 from doodle_doc.search.text_search import BM25Index
 
 
@@ -25,11 +26,13 @@ class SearchService:
         embedder: SigLIP2Embedder | None = None,
         index: FAISSIndex | None = None,
         bm25: BM25Index | None = None,
+        reranker: ColQwen2Reranker | None = None,
     ) -> None:
         self.settings = settings
         self._embedder = embedder
         self._index = index
         self._bm25 = bm25
+        self._reranker = reranker
         self._db: Database | None = None
 
     @property
@@ -56,6 +59,15 @@ class SearchService:
             self._db = Database(self.settings.index_dir / "metadata.sqlite")
         return self._db
 
+    @property
+    def reranker(self) -> ColQwen2Reranker:
+        if self._reranker is None:
+            self._reranker = ColQwen2Reranker(
+                model_name=self.settings.colqwen_model,
+                batch_size=self.settings.rerank_batch_size,
+            )
+        return self._reranker
+
     def search(
         self,
         sketch_image: Image.Image,
@@ -70,9 +82,10 @@ class SearchService:
             sketch_image: User's sketch as PIL Image
             text_query: Optional text to boost results
             top_k: Number of results to return
-            use_rerank: Whether to use Stage 2 reranking (not yet implemented)
+            use_rerank: Whether to use Stage 2 ColQwen2 reranking
         """
         top_k = top_k or self.settings.default_result_k
+        stage1_limit = self.settings.stage1_top_k if use_rerank else top_k
 
         normalized = normalize_sketch(
             sketch_image,
@@ -92,15 +105,15 @@ class SearchService:
             visual_page_scores = [(k, s) for k, s in page_scores.items()]
 
             fused = reciprocal_rank_fusion([visual_page_scores, text_page_scores])
-            sorted_pages = [key for key, _ in fused[:top_k]]
+            sorted_pages = [key for key, _ in fused[:stage1_limit]]
         else:
             sorted_pages = sorted(page_scores.keys(), key=lambda k: page_scores[k], reverse=True)
-            sorted_pages = sorted_pages[:top_k]
+            sorted_pages = sorted_pages[:stage1_limit]
 
         results = []
         for page_key in sorted_pages:
-            doc_id, page_num = page_key.split(":")
-            page_num = int(page_num)
+            doc_id, page_num_str = page_key.split(":")
+            page_num = int(page_num_str)
             doc = self.db.get_document(doc_id)
             if doc:
                 results.append(SearchResult(
@@ -111,6 +124,14 @@ class SearchService:
                     stage="fast",
                     thumbnail_url=f"/v1/thumb/{doc_id}/{page_num}",
                 ))
+
+        if use_rerank and results:
+            results = self.reranker.rerank(
+                results=results,
+                sketch_image=sketch_image,
+                rendered_dir=self.settings.rendered_dir,
+                top_k=top_k,
+            )
 
         return results
 

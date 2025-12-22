@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiGet, apiPost, apiPostFormData } from "./client";
+import { apiGet, apiPost, apiPostFormData, apiDelete } from "./client";
 import type {
   HealthResponse,
   Document,
@@ -44,16 +44,12 @@ export function useSearch() {
 }
 
 export function useStartIngest() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (params: { rootPath: string; forceReindex?: boolean }) =>
       apiPost<IngestResponse>("/ingest", {
         root_path: params.rootPath,
         force_reindex: params.forceReindex ?? false,
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-    },
   });
 }
 
@@ -63,5 +59,29 @@ export function useIngestStatus(jobId: string | null) {
     queryFn: () => apiGet<IngestStatusResponse>(`/ingest/${jobId}`),
     enabled: !!jobId,
     refetchInterval: 1000,
+  });
+}
+
+export function useRemoveDocuments() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (docIds: string[]) =>
+      apiDelete<{ removed: number }>("/documents", { doc_ids: docIds }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["health"] });
+    },
+  });
+}
+
+export function useReindexDocuments() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (docIds: string[]) =>
+      apiPost<{ reindexed: number }>("/documents/reindex", { doc_ids: docIds }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["health"] });
+    },
   });
 }

@@ -77,3 +77,26 @@ class FAISSIndex:
     def size(self) -> int:
         """Number of vectors in the index."""
         return self.index.ntotal
+
+    def remove_by_doc_id(self, doc_id: str) -> None:
+        """Remove all embeddings for a document. Rebuilds index."""
+        # Filter out embeddings for this doc_id
+        new_metadata = []
+        indices_to_keep = []
+        for i, meta in enumerate(self.id_to_metadata):
+            if meta.get("doc_id") != doc_id:
+                new_metadata.append(meta)
+                indices_to_keep.append(i)
+
+        if len(indices_to_keep) == len(self.id_to_metadata):
+            return  # Nothing to remove
+
+        # Rebuild index with remaining vectors
+        if indices_to_keep:
+            vectors = np.array([self.index.reconstruct(i) for i in indices_to_keep])
+            self.index = faiss.IndexFlatIP(self.embedding_dim)
+            self.index.add(vectors)
+        else:
+            self.index = faiss.IndexFlatIP(self.embedding_dim)
+
+        self.id_to_metadata = new_metadata

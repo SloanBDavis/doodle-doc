@@ -76,3 +76,10 @@ class Database:
                 .order_by(PageModel.page_num)
                 .all()
             )
+
+    def delete_document(self, doc_id: str) -> None:
+        """Delete a document and its pages."""
+        with self.session() as session:
+            session.query(PageModel).filter_by(doc_id=doc_id).delete()
+            session.query(DocumentModel).filter_by(doc_id=doc_id).delete()
+            session.commit()

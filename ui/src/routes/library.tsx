@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { FolderPlus } from "lucide-react";
 import { DocumentTable } from "@/components/library/DocumentTable";
@@ -12,6 +13,8 @@ import {
   useHealth,
   useStartIngest,
   useIngestStatus,
+  useRemoveDocuments,
+  useReindexDocuments,
 } from "@/api/hooks";
 
 export const Route = createFileRoute("/library")({
@@ -23,10 +26,13 @@ function LibraryPage() {
   const [showAddFolder, setShowAddFolder] = useState(false);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
 
+  const queryClient = useQueryClient();
   const { data: documents = [], isLoading: documentsLoading } = useDocuments();
   const { data: health } = useHealth();
   const startIngest = useStartIngest();
   const { data: ingestStatus } = useIngestStatus(currentJobId);
+  const removeDocuments = useRemoveDocuments();
+  const reindexDocuments = useReindexDocuments();
 
   const handleStartIndex = async (path: string) => {
     const response = await startIngest.mutateAsync({ rootPath: path });
@@ -36,6 +42,19 @@ function LibraryPage() {
 
   const handleProgressClose = () => {
     setCurrentJobId(null);
+    // Refresh documents list after ingestion completes
+    queryClient.invalidateQueries({ queryKey: ["documents"] });
+    queryClient.invalidateQueries({ queryKey: ["health"] });
+  };
+
+  const handleRemoveSelected = async () => {
+    await removeDocuments.mutateAsync(Array.from(selectedIds));
+    setSelectedIds(new Set());
+  };
+
+  const handleReindexSelected = async () => {
+    await reindexDocuments.mutateAsync(Array.from(selectedIds));
+    setSelectedIds(new Set());
   };
 
   if (documentsLoading) {
@@ -67,10 +86,20 @@ function LibraryPage() {
           <span className="text-sm text-muted-foreground">
             {selectedIds.size} selected
           </span>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReindexSelected}
+            disabled={reindexDocuments.isPending}
+          >
             Re-index Selected
           </Button>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRemoveSelected}
+            disabled={removeDocuments.isPending}
+          >
             Remove Selected
           </Button>
         </div>

@@ -43,3 +43,15 @@ export async function apiPostFormData<T>(
   }
   return res.json() as Promise<T>;
 }
+
+export async function apiDelete<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "DELETE",
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    throw new ApiError(res.status, `API error: ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}

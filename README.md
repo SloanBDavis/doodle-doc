@@ -11,6 +11,8 @@ Sketch-based search for handwritten PDF notes. Draw a symbol, find where you wro
 
 ## Updates
 - Just started this today, looking to have it working sometime in January (Dec 17, 2025)
+- Search with sigLIP2 is working and there is a basic UI. Ingestion and search both work (Dec 19, 2025)
+- Added reranking with ColQwen2. It is slow right now but the accuracy is higher, doodles require less features to return an accurate result (Dec 21, 2025)
 
 ## Architecture
 

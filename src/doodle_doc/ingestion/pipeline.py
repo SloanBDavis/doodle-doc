@@ -103,7 +103,7 @@ class IngestionPipeline:
 
         self.index.save(self.settings.index_dir)
 
-        progress.status = "complete"
+        progress.status = "completed"
         self._notify(on_progress, progress)
         return progress
 

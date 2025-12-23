@@ -13,23 +13,25 @@ Sketch-based search for handwritten PDF notes. Draw a symbol, find where you wro
 - Just started this today, looking to have it working sometime in January (Dec 17, 2025)
 - Search with sigLIP2 is working and there is a basic UI. Ingestion and search both work (Dec 19, 2025)
 - Added reranking with ColQwen2. It is slow right now but the accuracy is higher, doodles require less features to return an accurate result (Dec 21, 2025)
+- Switched to embedding with ColQwen2 at index time, this has increased accuracy by 50% on my sanity set with simple graphs (Dec 22, 2025)
 
 ## Architecture
 
-**Two-stage retrieval:**
-1. **Fast search** (~300ms): SigLIP2 embeddings + FAISS vector search
-2. **Accurate search** (~3s, optional): ColQwen2 reranks top results
+**Two-pronged retrieval:**
+1. **Fast search** : SigLIP2 embeddings + FAISS vector search
+2. **Accurate search** : ColQwen2 for more accurate results
+
+**Note** Used to use SigLIP2 for initial search and then ColQwen2 for reranking
 
 **Stack:**
 - Backend: FastAPI + Python 3.11+
 - Frontend: React + TypeScript + shadcn/ui
-- ML: PyTorch with MPS (Apple Silicon) support
+- ML: PyTorch
 - Index: FAISS for vectors, BM25 for text
 
 ## Requirements
 
-- Apple Silicon Mac (M1/M2/M3/M4) with 16GB+ RAM
-- 24GB recommended for ColQwen2 reranking
+- 24GB RAM recommended for ColQwen2 reranking
 - Python 3.11+
 - Node.js 18+
 

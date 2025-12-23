@@ -12,6 +12,7 @@ from doodle_doc.core.models import SearchResult
 from doodle_doc.ingestion.embed import SigLIP2Embedder
 from doodle_doc.ingestion.index import FAISSIndex
 from doodle_doc.ingestion.preprocess import normalize_sketch
+from doodle_doc.search.colqwen_search import ColQwen2SearchService
 from doodle_doc.search.fusion import reciprocal_rank_fusion
 from doodle_doc.search.rerank import ColQwen2Reranker
 from doodle_doc.search.text_search import BM25Index
@@ -27,12 +28,14 @@ class SearchService:
         index: FAISSIndex | None = None,
         bm25: BM25Index | None = None,
         reranker: ColQwen2Reranker | None = None,
+        colqwen_search: ColQwen2SearchService | None = None,
     ) -> None:
         self.settings = settings
         self._embedder = embedder
         self._index = index
         self._bm25 = bm25
         self._reranker = reranker
+        self._colqwen_search = colqwen_search
         self._db: Database | None = None
 
     @property
@@ -68,11 +71,18 @@ class SearchService:
             )
         return self._reranker
 
+    @property
+    def colqwen_search(self) -> ColQwen2SearchService:
+        if self._colqwen_search is None:
+            self._colqwen_search = ColQwen2SearchService(settings=self.settings)
+        return self._colqwen_search
+
     def search(
         self,
         sketch_image: Image.Image,
         text_query: str | None = None,
         top_k: int | None = None,
+        search_mode: str = "fast",
         use_rerank: bool = False,
     ) -> list[SearchResult]:
         """
@@ -82,9 +92,24 @@ class SearchService:
             sketch_image: User's sketch as PIL Image
             text_query: Optional text to boost results
             top_k: Number of results to return
-            use_rerank: Whether to use Stage 2 ColQwen2 reranking
+            search_mode: "fast" (SigLIP2) or "accurate" (ColQwen2)
+            use_rerank: Deprecated, use search_mode instead
         """
         top_k = top_k or self.settings.default_result_k
+
+        if use_rerank and search_mode == "fast":
+            search_mode = "accurate"
+
+        if search_mode == "accurate":
+            if self.colqwen_search.is_available():
+                return self.colqwen_search.search(
+                    sketch_image=sketch_image,
+                    top_k=top_k,
+                )
+            # Fall back to old reranking if ColQwen2 index not available
+            search_mode = "fast"
+            use_rerank = True
+
         stage1_limit = self.settings.stage1_top_k if use_rerank else top_k
 
         normalized = normalize_sketch(

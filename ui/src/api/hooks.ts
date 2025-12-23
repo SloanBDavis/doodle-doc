@@ -29,7 +29,7 @@ export function useSearch() {
       sketchBlob: Blob;
       textQuery?: string;
       topK?: number;
-      useRerank?: boolean;
+      searchMode?: "fast" | "accurate";
     }) => {
       const formData = new FormData();
       formData.append("sketch_image", params.sketchBlob, "sketch.png");
@@ -37,7 +37,7 @@ export function useSearch() {
         formData.append("text_query", params.textQuery);
       }
       formData.append("top_k", String(params.topK ?? 20));
-      formData.append("use_rerank", String(params.useRerank ?? false));
+      formData.append("search_mode", params.searchMode ?? "fast");
       return apiPostFormData<SearchResponse>("/search", formData);
     },
   });

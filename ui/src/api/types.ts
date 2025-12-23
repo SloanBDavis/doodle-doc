@@ -3,7 +3,7 @@ export interface SearchResultItem {
   doc_name: string;
   page_num: number;
   score: number;
-  stage: string;
+  stage: "fast" | "reranked" | "colqwen2";
   thumbnail_url: string;
 }
 

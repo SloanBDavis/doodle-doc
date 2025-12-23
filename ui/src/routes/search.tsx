@@ -3,8 +3,14 @@ import { useNavigate, createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   SketchCanvas,
   type SketchCanvasRef,
@@ -26,7 +32,7 @@ function SearchPage() {
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [textQuery, setTextQuery] = useState("");
-  const [useRerank, setUseRerank] = useState(false);
+  const [searchMode, setSearchMode] = useState<"fast" | "accurate">("fast");
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [queryTimeMs, setQueryTimeMs] = useState<number | null>(null);
 
@@ -40,7 +46,7 @@ function SearchPage() {
       const response = await searchMutation.mutateAsync({
         sketchBlob: blob,
         textQuery: textQuery || undefined,
-        useRerank,
+        searchMode,
       });
 
       setResults(response.results);
@@ -82,12 +88,19 @@ function SearchPage() {
             onChange={(e) => setTextQuery(e.target.value)}
           />
           <div className="flex items-center gap-2">
-            <Checkbox
-              id="accuracy"
-              checked={useRerank}
-              onCheckedChange={(checked) => setUseRerank(checked === true)}
-            />
-            <Label htmlFor="accuracy">High Accuracy (slower)</Label>
+            <Label htmlFor="search-mode">Search Mode</Label>
+            <Select
+              value={searchMode}
+              onValueChange={(v) => setSearchMode(v as "fast" | "accurate")}
+            >
+              <SelectTrigger id="search-mode" className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fast">Fast (SigLIP2)</SelectItem>
+                <SelectItem value="accurate">Accurate (ColQwen2)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Button
             className="w-full"

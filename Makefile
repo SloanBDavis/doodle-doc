@@ -1,4 +1,4 @@
-.PHONY: dev index serve test lint
+.PHONY: dev index serve test lint eval eval-fast eval-accurate eval-baseline eval-check
 
 # Development
 dev:
@@ -27,6 +27,18 @@ lint:
 # Evaluation
 eval:
 	uv run doodle-doc eval --config configs/default.yaml
+
+eval-fast:
+	uv run doodle-doc eval --config configs/default.yaml --mode fast
+
+eval-accurate:
+	uv run doodle-doc eval --config configs/default.yaml --mode accurate
+
+eval-baseline:
+	uv run doodle-doc eval --config configs/default.yaml --save-baseline
+
+eval-check:
+	uv run doodle-doc eval --config configs/default.yaml --check-regression
 
 # UI (run from ui/ directory)
 ui-dev:

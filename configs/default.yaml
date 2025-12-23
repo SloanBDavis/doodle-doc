@@ -30,3 +30,10 @@ text_boost_weight: 0.3
 
 # Index
 faiss_index_type: "IndexFlatIP"
+
+# Evaluation
+eval_num_queries: 100
+eval_seed: 42
+eval_min_crop_ratio: 0.15
+eval_max_crop_ratio: 0.40
+eval_regression_threshold: 0.05

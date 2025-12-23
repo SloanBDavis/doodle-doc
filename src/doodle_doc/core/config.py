@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     # Index
     faiss_index_type: Literal["IndexFlatIP"] = "IndexFlatIP"
 
+    # Evaluation
+    eval_num_queries: int = 100
+    eval_seed: int = 42
+    eval_min_crop_ratio: float = 0.15
+    eval_max_crop_ratio: float = 0.40
+    eval_regression_threshold: float = 0.05
+
     # Paths
     data_dir: Path = Field(default_factory=lambda: Path("data"))
     config_path: Path | None = None

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from doodle_doc.core.config import get_settings, load_settings_from_yaml
 from doodle_doc.ingestion.pipeline import IngestionPipeline, IndexingProgress
+from doodle_doc.eval.runner import EvalRunner
 
 
 def print_progress(progress: IndexingProgress) -> None:
@@ -68,6 +69,53 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_eval(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    if args.config:
+        settings = load_settings_from_yaml(Path(args.config))
+
+    modes = None
+    if args.mode != "both":
+        modes = [args.mode]
+
+    runner = EvalRunner(
+        settings=settings,
+        num_queries=args.num_queries,
+        seed=args.seed,
+        regenerate=args.regenerate,
+    )
+
+    results = runner.run(modes=modes)
+
+    print("\nEvaluation Results")
+    print("=" * 40)
+
+    for mode, metrics in results.items():
+        mode_label = "Fast (SigLIP2)" if mode == "fast" else "Accurate (ColQwen2)"
+        print(f"\n{mode_label}:")
+        print(f"  Recall@1:  {metrics.retrieval.recall_at_1:.3f}")
+        print(f"  Recall@5:  {metrics.retrieval.recall_at_5:.3f}")
+        print(f"  Recall@10: {metrics.retrieval.recall_at_10:.3f}")
+        print(f"  Recall@20: {metrics.retrieval.recall_at_20:.3f}")
+        print(f"  MRR:       {metrics.retrieval.mrr:.3f}")
+        print(f"  p50:       {metrics.latency.p50_ms:.0f}ms")
+        print(f"  p95:       {metrics.latency.p95_ms:.0f}ms")
+
+        if args.check_regression:
+            passed, msg = runner.compare_to_baseline(
+                metrics, mode, threshold=args.regression_threshold
+            )
+            status = "PASS" if passed else "FAIL"
+            print(f"  Regression: {status} - {msg}")
+
+    if args.save_baseline:
+        for mode in results:
+            runner.save_as_baseline(mode)
+        print(f"\nBaseline saved for: {', '.join(results.keys())}")
+
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="doodle-doc",
@@ -85,12 +133,24 @@ def main() -> int:
     serve_parser.add_argument("--port", "-p", type=int, help="Port to bind to")
     serve_parser.add_argument("--reload", "-r", action="store_true", help="Enable hot reload")
 
+    eval_parser = subparsers.add_parser("eval", help="Run evaluation")
+    eval_parser.add_argument("--config", "-c", help="Path to config YAML file")
+    eval_parser.add_argument("--mode", choices=["fast", "accurate", "both"], default="both")
+    eval_parser.add_argument("--regenerate", action="store_true", help="Regenerate pseudo-queries")
+    eval_parser.add_argument("--num-queries", type=int, default=100)
+    eval_parser.add_argument("--seed", type=int, default=42)
+    eval_parser.add_argument("--save-baseline", action="store_true", help="Save results as baseline")
+    eval_parser.add_argument("--check-regression", action="store_true", help="Check against baseline")
+    eval_parser.add_argument("--regression-threshold", type=float, default=0.05)
+
     args = parser.parse_args()
 
     if args.command == "index":
         return cmd_index(args)
     elif args.command == "serve":
         return cmd_serve(args)
+    elif args.command == "eval":
+        return cmd_eval(args)
 
     return 0
 

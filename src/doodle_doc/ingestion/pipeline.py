@@ -9,6 +9,8 @@ import numpy as np
 
 from doodle_doc.core.config import Settings
 from doodle_doc.core.database import Database, DocumentModel, PageModel
+from doodle_doc.ingestion.colqwen_embed import ColQwen2Embedder
+from doodle_doc.ingestion.colqwen_index import ColQwen2Index
 from doodle_doc.ingestion.discover import PDFFile, discover_pdfs, filter_unchanged
 from doodle_doc.ingestion.embed import SigLIP2Embedder
 from doodle_doc.ingestion.index import FAISSIndex
@@ -41,10 +43,13 @@ class IngestionPipeline:
         self,
         settings: Settings,
         embedder: SigLIP2Embedder | None = None,
+        colqwen_embedder: ColQwen2Embedder | None = None,
     ) -> None:
         self.settings = settings
         self._embedder = embedder
+        self._colqwen_embedder = colqwen_embedder
         self._index: FAISSIndex | None = None
+        self._colqwen_index: ColQwen2Index | None = None
         self._db: Database | None = None
 
     @property
@@ -71,6 +76,25 @@ class IngestionPipeline:
             db_path = self.settings.index_dir / "metadata.sqlite"
             self._db = Database(db_path)
         return self._db
+
+    @property
+    def colqwen_embedder(self) -> ColQwen2Embedder:
+        if self._colqwen_embedder is None:
+            self._colqwen_embedder = ColQwen2Embedder(
+                model_name=self.settings.colqwen_model,
+            )
+        return self._colqwen_embedder
+
+    @property
+    def colqwen_index(self) -> ColQwen2Index:
+        if self._colqwen_index is None:
+            colqwen_dir = self.settings.colqwen_index_dir
+            if (colqwen_dir / "manifest.json").exists():
+                self._colqwen_index = ColQwen2Index.load(colqwen_dir)
+            else:
+                self._colqwen_index = ColQwen2Index(colqwen_dir)
+                self._colqwen_index.set_model(self.settings.colqwen_model)
+        return self._colqwen_index
 
     def run(
         self,
@@ -102,6 +126,9 @@ class IngestionPipeline:
             self._notify(on_progress, progress)
 
         self.index.save(self.settings.index_dir)
+
+        if self.settings.colqwen_index_enabled:
+            self.colqwen_index.save()
 
         progress.status = "completed"
         self._notify(on_progress, progress)
@@ -166,6 +193,10 @@ class IngestionPipeline:
                 })
 
             self.index.add(np.array(embeddings), metadata)
+
+            if self.settings.colqwen_index_enabled:
+                colqwen_emb = self.colqwen_embedder.embed_single(img)
+                self.colqwen_index.add(doc_id, page_num, colqwen_emb)
 
             progress.pages_done += 1
             self._notify(on_progress, progress)

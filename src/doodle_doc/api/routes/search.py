@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from io import BytesIO
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from PIL import Image
@@ -17,6 +18,7 @@ async def search(
     sketch_image: UploadFile = File(...),
     text_query: str | None = Form(None),
     top_k: int = Form(20),
+    search_mode: Literal["fast", "accurate"] = Form("fast"),
     use_rerank: bool = Form(False),
     state: AppState = Depends(get_app_state),
 ) -> SearchResponse:
@@ -29,6 +31,7 @@ async def search(
         sketch_image=img,
         text_query=text_query,
         top_k=top_k,
+        search_mode=search_mode,
         use_rerank=use_rerank,
     )
 

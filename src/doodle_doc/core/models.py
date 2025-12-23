@@ -43,5 +43,5 @@ class SearchResult:
     doc_name: str
     page_num: int
     score: float
-    stage: Literal["fast", "reranked"]
+    stage: Literal["fast", "reranked", "colqwen2"]
     thumbnail_url: str

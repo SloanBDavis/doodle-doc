@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -27,7 +29,7 @@ class SearchResultItem(BaseModel):
     doc_name: str
     page_num: int
     score: float
-    stage: str
+    stage: Literal["fast", "reranked", "colqwen2"]
     thumbnail_url: str
 
 

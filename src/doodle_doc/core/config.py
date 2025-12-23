@@ -27,10 +27,14 @@ class Settings(BaseSettings):
     stage1_top_k: int = 100
     default_result_k: int = 20
 
-    # Reranking
+    # Reranking (deprecated, kept for backward compat)
     colqwen_model: str = "vidore/colqwen2-v1.0-hf"
     colqwen_lazy_load: bool = True
     rerank_batch_size: int = 8
+
+    # ColQwen2 Indexing
+    colqwen_index_enabled: bool = True
+    colqwen_index_batch_size: int = 4
 
     # Text search
     enable_text_boost: bool = True
@@ -56,6 +60,10 @@ class Settings(BaseSettings):
     @property
     def thumbnails_dir(self) -> Path:
         return self.data_dir / "thumbnails"
+
+    @property
+    def colqwen_index_dir(self) -> Path:
+        return self.index_dir / "colqwen"
 
 
 def load_settings_from_yaml(path: Path) -> Settings:

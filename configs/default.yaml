@@ -15,10 +15,14 @@ embedding_dim: 1152
 stage1_top_k: 100
 default_result_k: 20
 
-# Reranking
+# Reranking (deprecated, kept for backward compat)
 colqwen_model: "vidore/colqwen2-v1.0-hf"
 colqwen_lazy_load: true
 rerank_batch_size: 8
+
+# ColQwen2 Indexing
+colqwen_index_enabled: true
+colqwen_index_batch_size: 4
 
 # Text search
 enable_text_boost: true

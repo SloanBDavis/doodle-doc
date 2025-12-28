@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import os
 
-# Fix OpenMP duplicate library error on macOS
-# Must be set before importing torch, faiss, or opencv
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 import argparse
@@ -69,6 +67,72 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_synth_generate(args: argparse.Namespace) -> int:
+    from doodle_doc.synth.pipeline import SynthPipeline, SynthConfig
+
+    config = SynthConfig(
+        output_dir=Path(args.output),
+        num_pairs=args.num_pairs,
+        seed=args.seed,
+    )
+
+    print(f"Generating {config.num_pairs} page/doodle pairs to {config.output_dir}...")
+    print()
+
+    stats = SynthPipeline(config).run()
+
+    print()
+    print(f"Done! Generated {stats.pages} pairs")
+    print(f"Output: {stats.output_dir}")
+    return 0
+
+
+def cmd_synth_index(args: argparse.Namespace) -> int:
+    from doodle_doc.synth.synth_index import SynthIndexer
+
+    settings = get_settings()
+    if args.config:
+        settings = load_settings_from_yaml(Path(args.config))
+
+    synth_dir = Path(args.synth_dir)
+    if not synth_dir.exists():
+        print(f"Error: Synthetic dataset not found: {synth_dir}", file=sys.stderr)
+        return 1
+
+    print(f"Indexing synthetic pages from: {synth_dir}/pages")
+    print()
+
+    indexer = SynthIndexer(settings, synth_dir)
+    stats = indexer.run()
+
+    print()
+    print(f"Done! Indexed {stats.indexed} pages, skipped {stats.skipped}")
+    return 0
+
+
+def cmd_eval_synth(args: argparse.Namespace) -> int:
+    from doodle_doc.eval.synth_eval import SynthEvalRunner
+
+    settings = get_settings()
+    if args.config:
+        settings = load_settings_from_yaml(Path(args.config))
+
+    synth_dir = Path(args.synth_dir)
+    if not synth_dir.exists():
+        print(f"Error: Synthetic dataset not found: {synth_dir}", file=sys.stderr)
+        return 1
+
+    print("\nEvaluating with ColQwen2...")
+
+    runner = SynthEvalRunner(settings, synth_dir)
+    result = runner.run(top_k=args.top_k)
+
+    print()
+    print(result.summary())
+
+    return 0
+
+
 def cmd_eval(args: argparse.Namespace) -> int:
     settings = get_settings()
     if args.config:
@@ -126,14 +190,14 @@ def main() -> int:
     index_parser = subparsers.add_parser("index", help="Index PDF files")
     index_parser.add_argument("path", help="Path to folder containing PDFs")
     index_parser.add_argument("--config", "-c", help="Path to config YAML file")
-    index_parser.add_argument("--force", "-f", action="store_true", help="Force reindex all files")
+    index_parser.add_argument("--force", "-f", action="store_true", help="Force reindex")
 
     serve_parser = subparsers.add_parser("serve", help="Start the API server")
     serve_parser.add_argument("--host", help="Host to bind to")
     serve_parser.add_argument("--port", "-p", type=int, help="Port to bind to")
     serve_parser.add_argument("--reload", "-r", action="store_true", help="Enable hot reload")
 
-    eval_parser = subparsers.add_parser("eval", help="Run evaluation")
+    eval_parser = subparsers.add_parser("eval", help="Run crop-based evaluation")
     eval_parser.add_argument("--config", "-c", help="Path to config YAML file")
     eval_parser.add_argument("--mode", choices=["fast", "accurate", "both"], default="both")
     eval_parser.add_argument("--regenerate", action="store_true", help="Regenerate pseudo-queries")
@@ -143,6 +207,20 @@ def main() -> int:
     eval_parser.add_argument("--check-regression", action="store_true", help="Check against baseline")
     eval_parser.add_argument("--regression-threshold", type=float, default=0.05)
 
+    synth_gen_parser = subparsers.add_parser("synth-generate", help="Generate synthetic dataset")
+    synth_gen_parser.add_argument("--output", "-o", default="data/synth", help="Output directory")
+    synth_gen_parser.add_argument("--num-pairs", "-n", type=int, default=25, help="Number of pairs")
+    synth_gen_parser.add_argument("--seed", "-s", type=int, default=42, help="Random seed")
+
+    synth_index_parser = subparsers.add_parser("synth-index", help="Index synthetic pages")
+    synth_index_parser.add_argument("synth_dir", help="Path to synthetic dataset")
+    synth_index_parser.add_argument("--config", "-c", help="Path to config YAML file")
+
+    eval_synth_parser = subparsers.add_parser("eval-synth", help="Evaluate on synthetic dataset")
+    eval_synth_parser.add_argument("synth_dir", help="Path to synthetic dataset")
+    eval_synth_parser.add_argument("--config", "-c", help="Path to config YAML file")
+    eval_synth_parser.add_argument("--top-k", "-k", type=int, default=20)
+
     args = parser.parse_args()
 
     if args.command == "index":
@@ -151,6 +229,12 @@ def main() -> int:
         return cmd_serve(args)
     elif args.command == "eval":
         return cmd_eval(args)
+    elif args.command == "synth-generate":
+        return cmd_synth_generate(args)
+    elif args.command == "synth-index":
+        return cmd_synth_index(args)
+    elif args.command == "eval-synth":
+        return cmd_eval_synth(args)
 
     return 0
 

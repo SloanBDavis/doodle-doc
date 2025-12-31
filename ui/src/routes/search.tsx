@@ -32,7 +32,7 @@ function SearchPage() {
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [textQuery, setTextQuery] = useState("");
-  const [searchMode, setSearchMode] = useState<"fast" | "accurate">("fast");
+  const [searchMode, setSearchMode] = useState<"fast" | "accurate">("accurate");
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [queryTimeMs, setQueryTimeMs] = useState<number | null>(null);
 
@@ -97,8 +97,7 @@ function SearchPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="fast">Fast (SigLIP2)</SelectItem>
-                <SelectItem value="accurate">Accurate (ColQwen2)</SelectItem>
+                <SelectItem value="accurate">Accurate</SelectItem>
               </SelectContent>
             </Select>
           </div>

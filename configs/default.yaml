@@ -10,7 +10,7 @@ colqwen_model: "vidore/colqwen2-v1.0-hf"
 colqwen_batch_size: 4
 
 # Synthetic generation
-synth_model: "gemini-2.5-flash-image"
+synth_model: "gemini-3.1-flash-image-preview"
 synth_prompt_version: "v2"
 
 # Evaluation

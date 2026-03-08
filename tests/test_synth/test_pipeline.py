@@ -80,3 +80,37 @@ def test_synth_pipeline_cleans_output_dir_by_default(temp_dir: Path) -> None:
     pipeline.run()
 
     assert not stale_file.exists()
+
+
+def test_synth_pipeline_appends_without_overwriting_existing_pairs(temp_dir: Path) -> None:
+    settings = Settings(data_dir=temp_dir / "data")
+    output_dir = temp_dir / "synth"
+
+    first_pipeline = SynthPipeline(
+        settings=settings,
+        config=SynthConfig(output_dir=output_dir, num_pairs=2, seed=7, clean=True),
+        generator=FakeGenerator(),  # type: ignore[arg-type]
+        indexer_factory=lambda synth_dir: FakeIndexer(synth_dir),  # type: ignore[arg-type]
+    )
+    first_pipeline.run()
+
+    second_pipeline = SynthPipeline(
+        settings=settings,
+        config=SynthConfig(output_dir=output_dir, num_pairs=2, seed=7, clean=False),
+        generator=FakeGenerator(),  # type: ignore[arg-type]
+        indexer_factory=lambda synth_dir: FakeIndexer(synth_dir),  # type: ignore[arg-type]
+    )
+    second_pipeline.run()
+
+    with open(output_dir / "ground_truth.json") as f:
+        ground_truth = json.load(f)
+
+    assert sorted(ground_truth) == [
+        "doodle_0000",
+        "doodle_0001",
+        "doodle_0002",
+        "doodle_0003",
+    ]
+    assert (output_dir / "pages" / "page_0000.png").exists()
+    assert (output_dir / "pages" / "page_0003.png").exists()
+    assert ground_truth["doodle_0003"]["page_id"] == "page_0003"

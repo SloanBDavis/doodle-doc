@@ -22,7 +22,7 @@ class SynthConfig:
     output_dir: Path = Path("data/synth")
     num_pairs: int = 25
     seed: int = 42
-    model: str = "gemini-2.5-flash-image"
+    model: str = "gemini-3.1-flash-image-preview"
     prompt_version: str = "v2"
     clean: bool = True
 
@@ -69,9 +69,12 @@ class SynthPipeline:
 
         pages_dir = self.config.output_dir / "pages"
         doodles_dir = self.config.output_dir / "doodles"
-        ground_truth: dict[str, dict[str, Any]] = {}
+        ground_truth = self._load_existing_ground_truth()
+        start_idx = self._find_next_index(ground_truth)
+        self._advance_rng(start_idx)
 
-        for idx in range(self.config.num_pairs):
+        for offset in range(self.config.num_pairs):
+            idx = start_idx + offset
             archetype = self._rng.choice(PAGE_ARCHETYPES)
             page_id = f"page_{idx:04d}"
             doodle_id = f"doodle_{idx:04d}"
@@ -110,6 +113,32 @@ class SynthPipeline:
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
         (self.config.output_dir / "pages").mkdir(exist_ok=True)
         (self.config.output_dir / "doodles").mkdir(exist_ok=True)
+
+    def _load_existing_ground_truth(self) -> dict[str, dict[str, Any]]:
+        if self.config.clean:
+            return {}
+
+        path = self.config.output_dir / "ground_truth.json"
+        if not path.exists():
+            return {}
+
+        with open(path) as f:
+            data: dict[str, dict[str, Any]] = json.load(f)
+            return data
+
+    def _find_next_index(self, ground_truth: dict[str, dict[str, Any]]) -> int:
+        if not ground_truth:
+            return 0
+
+        indices = [
+            int(doodle_id.split("_")[1])
+            for doodle_id in ground_truth
+        ]
+        return max(indices) + 1
+
+    def _advance_rng(self, steps: int) -> None:
+        for _ in range(steps):
+            self._rng.choice(PAGE_ARCHETYPES)
 
     def _save_ground_truth(self, gt: dict[str, dict[str, Any]]) -> None:
         path = self.config.output_dir / "ground_truth.json"

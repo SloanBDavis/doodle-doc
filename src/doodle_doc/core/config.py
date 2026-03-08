@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     colqwen_batch_size: int = 4
 
     # Synthetic generation
-    synth_model: str = "gemini-2.5-flash-image"
+    synth_model: str = "gemini-3.1-flash-image-preview"
     synth_prompt_version: str = "v2"
 
     # Evaluation

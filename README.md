@@ -37,7 +37,9 @@ uv run doodle-doc synth-build --output data/synth --num-pairs 25
 uv run doodle-doc eval data/synth
 ```
 
-Pass `--model "<your Nano Banana 2 model id>"` to `synth-build` if you want to use a different Google GenAI image model.
+`synth-build` now defaults to Nano Banana 2, `gemini-3.1-flash-image-preview`.
+Pass `--model "<model id>"` if you want to override it.
+Use `--no-clean` to append new synthetic pairs onto an existing dataset.
 
 ## Project Structure
 

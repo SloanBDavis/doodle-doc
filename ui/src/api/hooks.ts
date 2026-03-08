@@ -27,17 +27,11 @@ export function useSearch() {
   return useMutation({
     mutationFn: async (params: {
       sketchBlob: Blob;
-      textQuery?: string;
       topK?: number;
-      searchMode?: "fast" | "accurate";
     }) => {
       const formData = new FormData();
       formData.append("sketch_image", params.sketchBlob, "sketch.png");
-      if (params.textQuery) {
-        formData.append("text_query", params.textQuery);
-      }
       formData.append("top_k", String(params.topK ?? 20));
-      formData.append("search_mode", params.searchMode ?? "fast");
       return apiPostFormData<SearchResponse>("/search", formData);
     },
   });

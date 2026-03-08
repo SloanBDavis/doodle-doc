@@ -30,7 +30,6 @@ class LatencyMetrics:
 class EvalMetrics:
     retrieval: RetrievalMetrics = field(default_factory=RetrievalMetrics)
     latency: LatencyMetrics = field(default_factory=LatencyMetrics)
-    search_mode: str = "fast"
     timestamp: str = ""
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 # Fix OpenMP duplicate library error on macOS
-# Must be set before importing torch, faiss, or opencv
+# Must be set before importing torch or opencv
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 from fastapi import FastAPI

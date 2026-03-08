@@ -50,9 +50,18 @@ class Database:
         with self.session() as session:
             return session.query(DocumentModel).filter_by(sha256=sha256).first()
 
+    def get_document_by_path(self, path: str) -> DocumentModel | None:
+        with self.session() as session:
+            return session.query(DocumentModel).filter_by(path=path).first()
+
     def add_document(self, doc: DocumentModel) -> None:
         with self.session() as session:
             session.add(doc)
+            session.commit()
+
+    def add_pages(self, pages: list[PageModel]) -> None:
+        with self.session() as session:
+            session.add_all(pages)
             session.commit()
 
     def add_page(self, page: PageModel) -> None:

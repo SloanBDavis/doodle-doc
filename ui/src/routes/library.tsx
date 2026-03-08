@@ -108,7 +108,6 @@ function LibraryPage() {
       <IndexStatusBar
         totalPages={health?.indexed_pages ?? 0}
         indexSizeMb={health?.index_size_mb ?? 0}
-        siglipLoaded={health?.siglip_loaded ?? false}
         colqwenLoaded={health?.colqwen_loaded ?? false}
       />
 

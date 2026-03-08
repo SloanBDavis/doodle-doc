@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal
 
 
 @dataclass
@@ -22,16 +21,12 @@ class Page:
     height_px: int
     text_layer: str | None = None
 
-
-RegionType = Literal["full", "q1", "q2", "q3", "q4"]
-
-
 @dataclass
 class EmbeddingRecord:
     embedding_id: str
     doc_id: str
     page_num: int
-    region: RegionType
+    region: str
     model_id: str
     pp_version: str
     created_at: datetime = field(default_factory=datetime.now)
@@ -43,5 +38,4 @@ class SearchResult:
     doc_name: str
     page_num: int
     score: float
-    stage: Literal["fast", "reranked", "colqwen2"]
     thumbnail_url: str

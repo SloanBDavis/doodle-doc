@@ -2,38 +2,16 @@
 render_dpi: 150
 max_pages_per_doc: 500
 
-# Preprocessing
-clahe_clip_limit: 2.0
-clahe_grid_size: 8
-
-# Embedding
-siglip_model: "google/siglip-so400m-patch14-384"
-siglip_batch_size: 32
-embedding_dim: 1152
-
 # Retrieval
-stage1_top_k: 100
 default_result_k: 20
 
-# Reranking (deprecated, kept for backward compat)
+# ColQwen2
 colqwen_model: "vidore/colqwen2-v1.0-hf"
-colqwen_lazy_load: true
-rerank_batch_size: 8
+colqwen_batch_size: 4
 
-# ColQwen2 Indexing
-colqwen_index_enabled: true
-colqwen_index_batch_size: 4
-
-# Text search
-enable_text_boost: true
-text_boost_weight: 0.3
-
-# Index
-faiss_index_type: "IndexFlatIP"
+# Synthetic generation
+synth_model: "gemini-2.5-flash-image"
+synth_prompt_version: "v2"
 
 # Evaluation
-eval_num_queries: 100
-eval_seed: 42
-eval_min_crop_ratio: 0.15
-eval_max_crop_ratio: 0.40
 eval_regression_threshold: 0.05

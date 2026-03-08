@@ -27,7 +27,9 @@ def _run_indexing(
 
     pipeline = IngestionPipeline(
         settings=state.settings,
-        embedder=state._embedder,
+        colqwen_embedder=state.colqwen_embedder,
+        colqwen_index=state.colqwen_index,
+        db=state.db,
     )
     pipeline.run(root_path, on_progress=on_progress, force_reindex=force_reindex)
 
@@ -64,9 +66,8 @@ def get_ingest_status(job_id: str) -> IngestStatusResponse:
 
     eta = None
     if progress.pages_done > 0 and progress.pages_total > progress.pages_done:
-        # Rough estimate based on progress
         remaining = progress.pages_total - progress.pages_done
-        eta = int(remaining * 0.5)  # ~0.5s per page estimate
+        eta = int(remaining * 0.5)
 
     return IngestStatusResponse(
         status=progress.status,

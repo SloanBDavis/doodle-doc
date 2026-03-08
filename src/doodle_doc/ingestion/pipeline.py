@@ -1,22 +1,21 @@
 from __future__ import annotations
 
+import shutil
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
-import numpy as np
+
+import fitz
+from PIL import Image
 
 from doodle_doc.core.config import Settings
 from doodle_doc.core.database import Database, DocumentModel, PageModel
 from doodle_doc.ingestion.colqwen_embed import ColQwen2Embedder
 from doodle_doc.ingestion.colqwen_index import ColQwen2Index
 from doodle_doc.ingestion.discover import PDFFile, discover_pdfs, filter_unchanged
-from doodle_doc.ingestion.embed import SigLIP2Embedder
-from doodle_doc.ingestion.index import FAISSIndex
-from doodle_doc.ingestion.preprocess import normalize_ink
-from doodle_doc.ingestion.regions import extract_regions
-from doodle_doc.ingestion.render import render_page, extract_text_layer, get_page_count
+from doodle_doc.ingestion.render import get_page_count
 
 
 @dataclass
@@ -42,33 +41,14 @@ class IngestionPipeline:
     def __init__(
         self,
         settings: Settings,
-        embedder: SigLIP2Embedder | None = None,
         colqwen_embedder: ColQwen2Embedder | None = None,
+        colqwen_index: ColQwen2Index | None = None,
+        db: Database | None = None,
     ) -> None:
         self.settings = settings
-        self._embedder = embedder
         self._colqwen_embedder = colqwen_embedder
-        self._index: FAISSIndex | None = None
-        self._colqwen_index: ColQwen2Index | None = None
-        self._db: Database | None = None
-
-    @property
-    def embedder(self) -> SigLIP2Embedder:
-        if self._embedder is None:
-            self._embedder = SigLIP2Embedder(
-                model_name=self.settings.siglip_model,
-            )
-        return self._embedder
-
-    @property
-    def index(self) -> FAISSIndex:
-        if self._index is None:
-            index_path = self.settings.index_dir
-            if (index_path / "faiss.index").exists():
-                self._index = FAISSIndex.load(index_path)
-            else:
-                self._index = FAISSIndex(self.settings.embedding_dim)
-        return self._index
+        self._colqwen_index = colqwen_index
+        self._db = db
 
     @property
     def db(self) -> Database:
@@ -107,13 +87,18 @@ class IngestionPipeline:
         self._notify(on_progress, progress)
 
         pdfs = discover_pdfs(root)
+        existing_docs = self.db.get_all_documents()
+        docs_by_path = {doc.path: doc for doc in existing_docs}
 
         if not force_reindex:
-            existing = {doc.sha256 for doc in self.db.get_all_documents()}
-            pdfs = filter_unchanged(pdfs, existing)
+            existing_hashes = {doc.sha256 for doc in existing_docs}
+            pdfs = filter_unchanged(pdfs, existing_hashes)
 
         progress.docs_total = len(pdfs)
-        progress.pages_total = sum(get_page_count(str(p.path)) for p in pdfs)
+        progress.pages_total = sum(
+            min(get_page_count(str(pdf.path)), self.settings.max_pages_per_doc)
+            for pdf in pdfs
+        )
         progress.status = "indexing"
         self._notify(on_progress, progress)
 
@@ -121,14 +106,15 @@ class IngestionPipeline:
             progress.current_doc = pdf.path.name
             self._notify(on_progress, progress)
 
+            existing_doc = docs_by_path.get(str(pdf.path))
+            if existing_doc is not None:
+                self.remove_document(existing_doc.doc_id)
+
             self._process_pdf(pdf, progress, on_progress)
             progress.docs_done += 1
             self._notify(on_progress, progress)
 
-        self.index.save(self.settings.index_dir)
-
-        if self.settings.colqwen_index_enabled:
-            self.colqwen_index.save()
+        self.colqwen_index.save()
 
         progress.status = "completed"
         self._notify(on_progress, progress)
@@ -142,64 +128,68 @@ class IngestionPipeline:
     ) -> None:
         """Process a single PDF file."""
         doc_id = str(uuid.uuid4())
-        num_pages = get_page_count(str(pdf.path))
-        num_pages = min(num_pages, self.settings.max_pages_per_doc)
-
-        doc = DocumentModel(
-            doc_id=doc_id,
-            path=str(pdf.path),
-            sha256=pdf.sha256,
-            modified_time=datetime.fromtimestamp(pdf.path.stat().st_mtime),
-            num_pages=num_pages,
-        )
-        self.db.add_document(doc)
-
-        rendered_dir = self.settings.rendered_dir / doc_id
-        rendered_dir.mkdir(parents=True, exist_ok=True)
-
-        for page_num in range(num_pages):
-            img = render_page(str(pdf.path), page_num, self.settings.render_dpi)
-
-            img_path = rendered_dir / f"{page_num}.png"
-            img.save(img_path)
-
-            text_layer = extract_text_layer(str(pdf.path), page_num)
-
-            page = PageModel(
+        with fitz.open(str(pdf.path)) as doc_handle:
+            num_pages = min(len(doc_handle), self.settings.max_pages_per_doc)
+            self.db.add_document(DocumentModel(
                 doc_id=doc_id,
-                page_num=page_num,
-                width_px=img.width,
-                height_px=img.height,
-                text_layer=text_layer,
-            )
-            self.db.add_page(page)
+                path=str(pdf.path),
+                sha256=pdf.sha256,
+                modified_time=datetime.fromtimestamp(pdf.path.stat().st_mtime),
+                num_pages=num_pages,
+            ))
 
-            normalized = normalize_ink(
-                img,
-                self.settings.clahe_clip_limit,
-                self.settings.clahe_grid_size,
-            )
-            regions = extract_regions(normalized)
+            rendered_dir = self.settings.rendered_dir / doc_id
+            rendered_dir.mkdir(parents=True, exist_ok=True)
 
-            embeddings = []
-            metadata = []
-            for region_name, region_img in regions.items():
-                emb = self.embedder.embed_single(region_img)
-                embeddings.append(emb)
-                metadata.append({
-                    "doc_id": doc_id,
-                    "page_num": page_num,
-                    "region": region_name,
-                })
+            batch_size = self.settings.colqwen_batch_size
+            for batch_start in range(0, num_pages, batch_size):
+                page_batch = list(range(batch_start, min(batch_start + batch_size, num_pages)))
+                page_models: list[PageModel] = []
+                images: list[Image.Image] = []
 
-            self.index.add(np.array(embeddings), metadata)
+                for page_num in page_batch:
+                    page_image, text_layer = self._load_page(doc_handle, page_num)
+                    images.append(page_image)
+                    page_image.save(rendered_dir / f"{page_num}.png")
+                    page_models.append(PageModel(
+                        doc_id=doc_id,
+                        page_num=page_num,
+                        width_px=page_image.width,
+                        height_px=page_image.height,
+                        text_layer=text_layer,
+                    ))
 
-            if self.settings.colqwen_index_enabled:
-                colqwen_emb = self.colqwen_embedder.embed_single(img)
-                self.colqwen_index.add(doc_id, page_num, colqwen_emb)
+                self.db.add_pages(page_models)
+                embeddings = self.colqwen_embedder.embed_batch(
+                    images,
+                    batch_size=self.settings.colqwen_batch_size,
+                )
+                self.colqwen_index.add_many([
+                    (doc_id, page_num, embedding)
+                    for page_num, embedding in zip(page_batch, embeddings, strict=True)
+                ])
 
-            progress.pages_done += 1
-            self._notify(on_progress, progress)
+                progress.pages_done += len(page_batch)
+                self._notify(on_progress, progress)
+
+    def remove_document(self, doc_id: str) -> None:
+        self.db.delete_document(doc_id)
+        self.colqwen_index.remove_by_doc_id(doc_id)
+        rendered_dir = self.settings.rendered_dir / doc_id
+        if rendered_dir.exists():
+            shutil.rmtree(rendered_dir)
+
+    def _load_page(
+        self,
+        doc_handle: fitz.Document,
+        page_num: int,
+    ) -> tuple[Image.Image, str | None]:
+        page = doc_handle[page_num]
+        zoom = self.settings.render_dpi / 72.0
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+        image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+        text_layer = page.get_text("text").strip()
+        return image, text_layer or None
 
     def _notify(
         self,

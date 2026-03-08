@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
 
 import yaml
 from pydantic import Field
@@ -14,40 +13,18 @@ class Settings(BaseSettings):
     render_dpi: int = 150
     max_pages_per_doc: int = 500
 
-    # Preprocessing
-    clahe_clip_limit: float = 2.0
-    clahe_grid_size: int = 8
-
-    # Embedding
-    siglip_model: str = "google/siglip-so400m-patch14-384"
-    siglip_batch_size: int = 32
-    embedding_dim: int = 1152
-
     # Retrieval
-    stage1_top_k: int = 100
     default_result_k: int = 20
 
-    # Reranking (deprecated, kept for backward compat)
+    # ColQwen2
     colqwen_model: str = "vidore/colqwen2-v1.0-hf"
-    colqwen_lazy_load: bool = True
-    rerank_batch_size: int = 8
+    colqwen_batch_size: int = 4
 
-    # ColQwen2 Indexing
-    colqwen_index_enabled: bool = True
-    colqwen_index_batch_size: int = 4
-
-    # Text search
-    enable_text_boost: bool = True
-    text_boost_weight: float = 0.3
-
-    # Index
-    faiss_index_type: Literal["IndexFlatIP"] = "IndexFlatIP"
+    # Synthetic generation
+    synth_model: str = "gemini-2.5-flash-image"
+    synth_prompt_version: str = "v2"
 
     # Evaluation
-    eval_num_queries: int = 100
-    eval_seed: int = 42
-    eval_min_crop_ratio: float = 0.15
-    eval_max_crop_ratio: float = 0.40
     eval_regression_threshold: float = 0.05
 
     # Paths

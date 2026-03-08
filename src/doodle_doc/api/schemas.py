@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Literal
-
 from pydantic import BaseModel
 
 
@@ -29,7 +27,6 @@ class SearchResultItem(BaseModel):
     doc_name: str
     page_num: int
     score: float
-    stage: Literal["fast", "reranked", "colqwen2"]
     thumbnail_url: str
 
 
@@ -41,7 +38,6 @@ class SearchResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    siglip_loaded: bool
     colqwen_loaded: bool
     indexed_pages: int
     index_size_mb: float

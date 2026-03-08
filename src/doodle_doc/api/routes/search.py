@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import time
 from io import BytesIO
-from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from PIL import Image
@@ -16,10 +15,7 @@ router = APIRouter(prefix="/v1", tags=["search"])
 @router.post("/search", response_model=SearchResponse)
 async def search(
     sketch_image: UploadFile = File(...),
-    text_query: str | None = Form(None),
     top_k: int = Form(20),
-    search_mode: Literal["fast", "accurate"] = Form("fast"),
-    use_rerank: bool = Form(False),
     state: AppState = Depends(get_app_state),
 ) -> SearchResponse:
     start_time = time.time()
@@ -29,10 +25,7 @@ async def search(
 
     results = state.search_service.search(
         sketch_image=img,
-        text_query=text_query,
         top_k=top_k,
-        search_mode=search_mode,
-        use_rerank=use_rerank,
     )
 
     query_time_ms = int((time.time() - start_time) * 1000)
@@ -44,11 +37,10 @@ async def search(
                 doc_name=r.doc_name,
                 page_num=r.page_num,
                 score=r.score,
-                stage=r.stage,
                 thumbnail_url=r.thumbnail_url,
             )
             for r in results
         ],
         query_time_ms=query_time_ms,
-        total_indexed_pages=state.index.size // 5,
+        total_indexed_pages=state.colqwen_index.page_count,
     )

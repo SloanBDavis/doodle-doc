@@ -17,6 +17,14 @@ class DocumentIdsRequest(BaseModel):
     doc_ids: list[str]
 
 
+def _remove_document_artifacts(state: AppState, doc_id: str) -> None:
+    state.db.delete_document(doc_id)
+    state.colqwen_index.remove_by_doc_id(doc_id)
+    rendered_dir = state.settings.rendered_dir / doc_id
+    if rendered_dir.exists():
+        shutil.rmtree(rendered_dir)
+
+
 @router.get("/doc/{doc_id}/page/{page_num}")
 def get_page(
     doc_id: str,
@@ -37,7 +45,6 @@ def get_thumbnail(
     state: AppState = Depends(get_app_state),
 ) -> FileResponse:
     """Get page thumbnail (uses same image, browser will resize)."""
-    # TODO: Generate actual thumbnails at 300px width
     image_path = state.settings.rendered_dir / doc_id / f"{page_num}.png"
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="Page not found")
@@ -69,18 +76,9 @@ def remove_documents(
 ) -> dict:
     """Remove documents from index."""
     for doc_id in request.doc_ids:
-        # Remove from database
-        state.db.delete_document(doc_id)
-        # Remove from FAISS index
-        state.index.remove_by_doc_id(doc_id)
-        # Remove rendered images
-        rendered_dir = state.settings.rendered_dir / doc_id
-        if rendered_dir.exists():
-            shutil.rmtree(rendered_dir)
+        _remove_document_artifacts(state, doc_id)
 
-    # Save updated index
-    state.index.save(state.settings.index_dir)
-
+    state.colqwen_index.save()
     return {"removed": len(request.doc_ids)}
 
 
@@ -96,35 +94,27 @@ def reindex_documents(
     reindexed = 0
     for doc_id in request.doc_ids:
         doc = state.db.get_document(doc_id)
-        if not doc:
+        if doc is None:
             continue
 
         pdf_path = Path(doc.path)
         if not pdf_path.exists():
             continue
 
-        # Remove old data first
-        state.db.delete_document(doc_id)
-        state.index.remove_by_doc_id(doc_id)
-        rendered_dir = state.settings.rendered_dir / doc_id
-        if rendered_dir.exists():
-            shutil.rmtree(rendered_dir)
+        _remove_document_artifacts(state, doc_id)
 
-        # Re-index the document
         sha256 = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
         pdf_file = PDFFile(path=pdf_path, sha256=sha256, size_bytes=pdf_path.stat().st_size)
 
         pipeline = IngestionPipeline(
             settings=state.settings,
-            embedder=state.embedder if state.is_embedder_loaded() else None,
+            colqwen_embedder=state.colqwen_embedder,
+            colqwen_index=state.colqwen_index,
+            db=state.db,
         )
-        pipeline._index = state.index
-        pipeline._db = state.db
-
-        # Create a dummy progress object
         progress = IndexingProgress()
         pipeline._process_pdf(pdf_file, progress, None)
         reindexed += 1
 
-    state.index.save(state.settings.index_dir)
+    state.colqwen_index.save()
     return {"reindexed": reindexed}

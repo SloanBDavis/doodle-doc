@@ -53,6 +53,22 @@ class ColQwen2Index:
             "shape": list(embedding.shape),
         }
 
+    def add_many(
+        self,
+        records: list[tuple[str, int, np.ndarray]],
+    ) -> None:
+        self.embeddings_dir.mkdir(parents=True, exist_ok=True)
+        for doc_id, page_num, embedding in records:
+            filename = self._embedding_filename(doc_id, page_num)
+            filepath = self.embeddings_dir / filename
+            np.save(filepath, embedding)
+
+            key = self._page_key(doc_id, page_num)
+            self._manifest["pages"][key] = {
+                "file": filename,
+                "shape": list(embedding.shape),
+            }
+
     def get(self, doc_id: str, page_num: int) -> np.ndarray | None:
         key = self._page_key(doc_id, page_num)
         if key not in self._manifest["pages"]:

@@ -20,7 +20,6 @@ def make_result(doc_id: str, page_num: int, score: float) -> SearchResult:
         doc_name=f"{doc_id}.pdf",
         page_num=page_num,
         score=score,
-        stage="fast",
         thumbnail_url=f"/v1/thumb/{doc_id}/{page_num}",
     )
 

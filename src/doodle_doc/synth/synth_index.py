@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from PIL import Image
 
@@ -20,13 +21,19 @@ class SynthIndexStats:
 class SynthIndexer:
     """Index synthetic pages using ColQwen2 embeddings."""
 
-    def __init__(self, settings: Settings, synth_dir: Path) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        synth_dir: Path,
+        embedder: ColQwen2Embedder | None = None,
+        index: ColQwen2Index | None = None,
+    ) -> None:
         self.settings = settings
         self.synth_dir = synth_dir
         self.pages_dir = synth_dir / "pages"
         self.index_dir = synth_dir / "index" / "colqwen"
-        self._embedder: ColQwen2Embedder | None = None
-        self._index: ColQwen2Index | None = None
+        self._embedder = embedder
+        self._index = index
 
     @property
     def embedder(self) -> ColQwen2Embedder:
@@ -46,32 +53,32 @@ class SynthIndexer:
 
     def run(self) -> SynthIndexStats:
         page_files = sorted(self.pages_dir.glob("*.png"))
-
         if not page_files:
-            print(f"No pages found in {self.pages_dir}")
             return SynthIndexStats(total_pages=0, indexed=0, skipped=0)
 
         indexed = 0
         skipped = 0
+        batch_size = self.settings.colqwen_batch_size
 
-        for i, page_path in enumerate(page_files):
-            doc_id = page_path.stem  # e.g., "page_0000"
-            page_num = 0  # Synth pages are single images
+        for batch_start in range(0, len(page_files), batch_size):
+            file_batch = page_files[batch_start : batch_start + batch_size]
+            images = [Image.open(page_path).convert("RGB") for page_path in file_batch]
+            embeddings = self.embedder.embed_batch(images, batch_size=batch_size)
+            records: list[tuple[str, int, Any]] = []
 
-            if self.index.has_page(doc_id, page_num):
-                print(f"[{i+1}/{len(page_files)}] {doc_id} (skipped, already indexed)")
-                skipped += 1
-                continue
+            for page_path, embedding in zip(file_batch, embeddings, strict=True):
+                doc_id = page_path.stem
+                page_num = 0
+                if self.index.has_page(doc_id, page_num):
+                    skipped += 1
+                    continue
+                records.append((doc_id, page_num, embedding))
+                indexed += 1
 
-            print(f"[{i+1}/{len(page_files)}] Indexing {doc_id}...")
+            if records:
+                self.index.add_many(records)
 
-            img = Image.open(page_path)
-            embedding = self.embedder.embed_single(img)
-
-            self.index.add(doc_id, page_num, embedding)
-            self.index.save()
-            indexed += 1
-
+        self.index.save()
         return SynthIndexStats(
             total_pages=len(page_files),
             indexed=indexed,

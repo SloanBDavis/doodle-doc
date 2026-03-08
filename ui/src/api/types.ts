@@ -3,7 +3,6 @@ export interface SearchResultItem {
   doc_name: string;
   page_num: number;
   score: number;
-  stage: "fast" | "reranked" | "colqwen2";
   thumbnail_url: string;
 }
 
@@ -42,7 +41,6 @@ export interface IngestStatusResponse {
 
 export interface HealthResponse {
   status: string;
-  siglip_loaded: boolean;
   colqwen_loaded: boolean;
   indexed_pages: number;
   index_size_mb: number;

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import torch
 from PIL import Image
 
 from doodle_doc.core.config import Settings
@@ -10,6 +9,7 @@ from doodle_doc.core.database import Database
 from doodle_doc.core.models import SearchResult
 from doodle_doc.ingestion.colqwen_embed import ColQwen2Embedder
 from doodle_doc.ingestion.colqwen_index import ColQwen2Index
+from doodle_doc.ingestion.colqwen_utils import maxsim_score
 
 
 def _prepare_query_image(img: Image.Image) -> Image.Image:
@@ -68,7 +68,6 @@ class SearchService:
             self.embedder.load()
 
         query_emb = self.embedder.embed_single(_prepare_query_image(sketch_image))
-        query_tensor = torch.from_numpy(query_emb).unsqueeze(0)
 
         scores: list[tuple[str, int, float]] = []
         for doc_id, page_num in self.index.all_page_keys():
@@ -76,8 +75,9 @@ class SearchService:
             if doc_emb is None:
                 continue
 
-            doc_tensor = torch.from_numpy(doc_emb).unsqueeze(0)
-            score = self._compute_maxsim(query_tensor, doc_tensor)
+            score = maxsim_score(query_emb, doc_emb)
+            if score == float("-inf"):
+                continue
             scores.append((doc_id, page_num, score))
 
         scores.sort(key=lambda item: item[2], reverse=True)
@@ -96,15 +96,3 @@ class SearchService:
             ))
 
         return results
-
-    def _compute_maxsim(
-        self,
-        query_emb: torch.Tensor,
-        doc_emb: torch.Tensor,
-    ) -> float:
-        query_norm = torch.nn.functional.normalize(query_emb, p=2, dim=-1)
-        doc_norm = torch.nn.functional.normalize(doc_emb, p=2, dim=-1)
-
-        sim_matrix = torch.matmul(query_norm[0], doc_norm[0].T)
-        max_sims = sim_matrix.max(dim=1).values
-        return float(max_sims.sum().item())

@@ -75,6 +75,10 @@ def cmd_serve(args: argparse.Namespace) -> int:
 def cmd_synth_build(args: argparse.Namespace) -> int:
     settings = _load_settings(args.config)
     output_dir = Path(args.output)
+    concurrency = args.concurrency if args.concurrency is not None else settings.synth_concurrency
+    if concurrency < 1:
+        print("Error: --concurrency must be at least 1", file=sys.stderr)
+        return 1
 
     config = SynthConfig(
         output_dir=output_dir,
@@ -82,11 +86,13 @@ def cmd_synth_build(args: argparse.Namespace) -> int:
         seed=args.seed,
         model=args.model or settings.synth_model,
         prompt_version=settings.synth_prompt_version,
+        concurrency=concurrency,
         clean=not args.no_clean,
     )
 
     print(f"Building synthetic dataset at: {output_dir}")
     print(f"Model: {config.model}")
+    print(f"Concurrency: {config.concurrency}")
     print()
 
     stats = SynthPipeline(settings=settings, config=config).run()
@@ -162,6 +168,11 @@ def main() -> int:
     synth_build_parser.add_argument("--num-pairs", "-n", type=int, default=25, help="Number of pairs")
     synth_build_parser.add_argument("--seed", "-s", type=int, default=42, help="Random seed")
     synth_build_parser.add_argument("--model", help="Google GenAI image model to use")
+    synth_build_parser.add_argument(
+        "--concurrency",
+        type=int,
+        help="Number of concurrent image-generation jobs",
+    )
     synth_build_parser.add_argument("--config", "-c", help="Path to config YAML file")
     synth_build_parser.add_argument(
         "--no-clean",

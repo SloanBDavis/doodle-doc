@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import random
 import shutil
@@ -24,6 +25,7 @@ class SynthConfig:
     seed: int = 42
     model: str = "gemini-3.1-flash-image-preview"
     prompt_version: str = "v2"
+    concurrency: int = 4
     clean: bool = True
 
 
@@ -41,28 +43,22 @@ class SynthPipeline:
         settings: Settings,
         config: SynthConfig | None = None,
         generator: GeminiGenerator | None = None,
+        generator_factory: Callable[[], GeminiGenerator] | None = None,
         indexer_factory: Callable[[Path], SynthIndexer] | None = None,
     ) -> None:
         base_config = config or SynthConfig(
             model=settings.synth_model,
             prompt_version=settings.synth_prompt_version,
+            concurrency=settings.synth_concurrency,
         )
         self.settings = settings
         self.config = base_config
         self._generator = generator
+        self._generator_factory = generator_factory
         self._rng = random.Random(self.config.seed)
         self._indexer_factory = indexer_factory or (
             lambda synth_dir: SynthIndexer(settings, synth_dir)
         )
-
-    @property
-    def generator(self) -> GeminiGenerator:
-        if self._generator is None:
-            self._generator = GeminiGenerator(GeminiConfig(
-                model=self.config.model,
-                prompt_version=self.config.prompt_version,
-            ))
-        return self._generator
 
     def run(self) -> SynthStats:
         self._setup_dirs()
@@ -72,30 +68,47 @@ class SynthPipeline:
         ground_truth = self._load_existing_ground_truth()
         start_idx = self._find_next_index(ground_truth)
         self._advance_rng(start_idx)
+        jobs = [
+            _SynthJob(
+                idx=start_idx + offset,
+                archetype=self._rng.choice(PAGE_ARCHETYPES),
+            )
+            for offset in range(self.config.num_pairs)
+        ]
+        worker_count = max(1, min(self.config.concurrency, len(jobs) or 1))
 
-        for offset in range(self.config.num_pairs):
-            idx = start_idx + offset
-            archetype = self._rng.choice(PAGE_ARCHETYPES)
-            page_id = f"page_{idx:04d}"
-            doodle_id = f"doodle_{idx:04d}"
+        print(f"Generating {len(jobs)} synthetic pairs with concurrency {worker_count}")
 
-            page = self.generator.generate_notes_page(archetype)
-            page.save(pages_dir / f"{page_id}.png", "PNG")
-
-            doodle, element = self.generator.generate_doodle_for_page(page)
-            doodle.save(doodles_dir / f"{doodle_id}.png", "PNG")
-
-            ground_truth[doodle_id] = {
-                "page_id": page_id,
-                "domain": archetype.domain,
-                "subject": archetype.subject,
-                "archetype": archetype.key,
-                "element": element,
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = {
+                executor.submit(
+                    self._generate_pair,
+                    job,
+                    pages_dir,
+                    doodles_dir,
+                ): job
+                for job in jobs
             }
+            completed = 0
+            for future in as_completed(futures):
+                result = future.result()
+                completed += 1
+                print(
+                    f"[{completed}/{len(jobs)}] Generated {result['page_id']} and {result['doodle_id']}",
+                    flush=True,
+                )
+                ground_truth[result["doodle_id"]] = {
+                    "page_id": result["page_id"],
+                    "domain": result["domain"],
+                    "subject": result["subject"],
+                    "archetype": result["archetype"],
+                    "element": result["element"],
+                }
 
         self._save_ground_truth(ground_truth)
         self._save_manifest(len(ground_truth))
 
+        print("Indexing synthetic pages with ColQwen2...", flush=True)
         indexer = self._indexer_factory(self.config.output_dir)
         index_stats = indexer.run()
 
@@ -105,6 +118,41 @@ class SynthPipeline:
             indexed=index_stats.indexed,
             output_dir=self.config.output_dir,
         )
+
+    def _generator_for_task(self) -> GeminiGenerator:
+        if self._generator_factory is not None:
+            return self._generator_factory()
+        if self._generator is not None:
+            return self._generator
+        return GeminiGenerator(GeminiConfig(
+            model=self.config.model,
+            prompt_version=self.config.prompt_version,
+        ))
+
+    def _generate_pair(
+        self,
+        job: _SynthJob,
+        pages_dir: Path,
+        doodles_dir: Path,
+    ) -> dict[str, str]:
+        generator = self._generator_for_task()
+        page_id = f"page_{job.idx:04d}"
+        doodle_id = f"doodle_{job.idx:04d}"
+
+        page = generator.generate_notes_page(job.archetype)
+        page.save(pages_dir / f"{page_id}.png", "PNG")
+
+        doodle, element = generator.generate_doodle_for_page(page)
+        doodle.save(doodles_dir / f"{doodle_id}.png", "PNG")
+
+        return {
+            "page_id": page_id,
+            "doodle_id": doodle_id,
+            "domain": job.archetype.domain,
+            "subject": job.archetype.subject,
+            "archetype": job.archetype.key,
+            "element": element,
+        }
 
     def _setup_dirs(self) -> None:
         if self.config.clean and self.config.output_dir.exists():
@@ -165,3 +213,9 @@ class SynthPipeline:
         path = self.config.output_dir / "manifest.json"
         with open(path, "w") as f:
             json.dump(manifest, f, indent=2)
+
+
+@dataclass(frozen=True)
+class _SynthJob:
+    idx: int
+    archetype: Any

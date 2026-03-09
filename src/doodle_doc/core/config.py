@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     # Synthetic generation
     synth_model: str = "gemini-3.1-flash-image-preview"
     synth_prompt_version: str = "v2"
+    synth_concurrency: int = 4
 
     # Evaluation
     eval_regression_threshold: float = 0.05

@@ -12,6 +12,7 @@ colqwen_batch_size: 4
 # Synthetic generation
 synth_model: "gemini-3.1-flash-image-preview"
 synth_prompt_version: "v2"
+synth_concurrency: 4
 
 # Evaluation
 eval_regression_threshold: 0.05

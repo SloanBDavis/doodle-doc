@@ -5,7 +5,6 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-import torch
 from PIL import Image
 
 from doodle_doc.core.config import Settings
@@ -21,6 +20,7 @@ from doodle_doc.eval.metrics import (
 )
 from doodle_doc.ingestion.colqwen_embed import ColQwen2Embedder
 from doodle_doc.ingestion.colqwen_index import ColQwen2Index
+from doodle_doc.ingestion.colqwen_utils import maxsim_score
 
 
 class EvalRunner:
@@ -94,31 +94,22 @@ class EvalRunner:
             self.embedder.load()
 
         query_emb = self.embedder.embed_single(sketch_image.convert("RGB"))
-        query_tensor = torch.from_numpy(query_emb).unsqueeze(0)
 
         scores: list[tuple[str, int, float]] = []
         for doc_id, page_num in self.index.all_page_keys():
             doc_emb = self.index.get(doc_id, page_num)
             if doc_emb is None:
                 continue
-            doc_tensor = torch.from_numpy(doc_emb).unsqueeze(0)
-            scores.append((doc_id, page_num, self._compute_maxsim(query_tensor, doc_tensor)))
+            score = maxsim_score(query_emb, doc_emb)
+            if score == float("-inf"):
+                continue
+            scores.append((doc_id, page_num, score))
 
         scores.sort(key=lambda item: item[2], reverse=True)
         return [
             _EvalResult(doc_id=doc_id, page_num=page_num, score=float(score))
             for doc_id, page_num, score in scores[: self.top_k]
         ]
-
-    def _compute_maxsim(
-        self,
-        query_emb: torch.Tensor,
-        doc_emb: torch.Tensor,
-    ) -> float:
-        query_norm = torch.nn.functional.normalize(query_emb, p=2, dim=-1)
-        doc_norm = torch.nn.functional.normalize(doc_emb, p=2, dim=-1)
-        sim_matrix = torch.matmul(query_norm[0], doc_norm[0].T)
-        return float(sim_matrix.max(dim=1).values.sum().item())
 
     def _save_results(self, metrics: EvalMetrics) -> Path:
         self.results_dir.mkdir(parents=True, exist_ok=True)

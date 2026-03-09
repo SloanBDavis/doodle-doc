@@ -38,6 +38,7 @@ def test_synth_pipeline_builds_eval_ready_dataset(temp_dir: Path) -> None:
         seed=7,
         model="test-model",
         prompt_version="v-test",
+        concurrency=2,
     )
     pipeline = SynthPipeline(
         settings=settings,
@@ -88,7 +89,7 @@ def test_synth_pipeline_appends_without_overwriting_existing_pairs(temp_dir: Pat
 
     first_pipeline = SynthPipeline(
         settings=settings,
-        config=SynthConfig(output_dir=output_dir, num_pairs=2, seed=7, clean=True),
+        config=SynthConfig(output_dir=output_dir, num_pairs=2, seed=7, concurrency=2, clean=True),
         generator=FakeGenerator(),  # type: ignore[arg-type]
         indexer_factory=lambda synth_dir: FakeIndexer(synth_dir),  # type: ignore[arg-type]
     )
@@ -96,7 +97,7 @@ def test_synth_pipeline_appends_without_overwriting_existing_pairs(temp_dir: Pat
 
     second_pipeline = SynthPipeline(
         settings=settings,
-        config=SynthConfig(output_dir=output_dir, num_pairs=2, seed=7, clean=False),
+        config=SynthConfig(output_dir=output_dir, num_pairs=2, seed=7, concurrency=2, clean=False),
         generator=FakeGenerator(),  # type: ignore[arg-type]
         indexer_factory=lambda synth_dir: FakeIndexer(synth_dir),  # type: ignore[arg-type]
     )
@@ -114,3 +115,25 @@ def test_synth_pipeline_appends_without_overwriting_existing_pairs(temp_dir: Pat
     assert (output_dir / "pages" / "page_0000.png").exists()
     assert (output_dir / "pages" / "page_0003.png").exists()
     assert ground_truth["doodle_0003"]["page_id"] == "page_0003"
+
+
+def test_synth_pipeline_uses_configured_concurrency(temp_dir: Path) -> None:
+    settings = Settings(data_dir=temp_dir / "data")
+    output_dir = temp_dir / "synth"
+    created_generators: list[FakeGenerator] = []
+
+    def make_generator() -> FakeGenerator:
+        generator = FakeGenerator()
+        created_generators.append(generator)
+        return generator
+
+    pipeline = SynthPipeline(
+        settings=settings,
+        config=SynthConfig(output_dir=output_dir, num_pairs=3, concurrency=2),
+        generator_factory=make_generator,  # type: ignore[arg-type]
+        indexer_factory=lambda synth_dir: FakeIndexer(synth_dir),  # type: ignore[arg-type]
+    )
+
+    pipeline.run()
+
+    assert len(created_generators) == 3

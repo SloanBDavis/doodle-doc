@@ -8,6 +8,8 @@ import numpy as np
 import torch
 from PIL import Image
 
+from doodle_doc.ingestion.colqwen_utils import compact_embedding
+
 if TYPE_CHECKING:
     from transformers import ColQwen2ForRetrieval, ColQwen2Processor
 
@@ -91,7 +93,7 @@ class ColQwen2Embedder:
         outputs = self._model(**inputs)
 
         embeddings = outputs.embeddings[0].cpu().numpy()
-        return embeddings
+        return compact_embedding(embeddings)
 
     @torch.no_grad()
     def embed_batch(
@@ -118,7 +120,7 @@ class ColQwen2Embedder:
             outputs = self._model(**inputs)
 
             for j in range(len(batch)):
-                emb = outputs.embeddings[j].cpu().numpy()
+                emb = compact_embedding(outputs.embeddings[j].cpu().numpy())
                 all_embeddings.append(emb)
 
         return all_embeddings
